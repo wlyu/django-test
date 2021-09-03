@@ -1,0 +1,5 @@
+*.pid
+*.bak
+*.dat
+*.dir
+.idea

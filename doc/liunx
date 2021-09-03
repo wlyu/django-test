@@ -1,0 +1,77 @@
+1.部署Nginx
+  server {
+        autoindex on;
+        listen       80;
+        server_name  localhost;
+        access_log   logs/my.access.log  main;
+        location / {
+            alias  /opt/apps/ui/dist/;
+        }
+        location /api {
+            rewrite ^/api/(.*) /$1  break;
+            uwsgi_send_timeout 600;
+            uwsgi_connect_timeout 600;
+            uwsgi_read_timeout 600;
+            uwsgi_pass 127.0.0.1:8000;
+            include     uwsgi_params;
+        }
+    }
+
+2.部署uwsgi
+~/.pyenv/versions/3.7.4/bin/python3.7 -m pip install uwsgi
+启动命令 uswgi --ini uwsgi.ini
+停止命令 uswgi --stop logs/uwsgi.pid
+[root]# cat uwsgi.ini
+[uwsgi]
+chdir = /opt/apps/Mysite
+module = Mysite.wsgi:application
+home = /root/.pyenv/versions/3.7.4
+# socket地址, 可以是文件
+socket = 127.0.0.1:8000
+# 启动主进程
+master = True
+# 工作进程数
+processes = 5
+# 最大请求数
+max-requests = 5000
+# 请求最大数据长度32k
+buffer-size=32768
+# Pid文件路径
+pidfile = logs/uwsgi.pid
+# 日志路径
+daemonize = logs/uwsgi.log
+# 退出、重启时清理文件
+vacuum = true
+wsgi-file = Mysite/wsgi.py
+4.启动celery（以后台形式启动）
+/etc/init.d/celerd (https://github.com/celery/celery/tree/4.3/extra/generic-init.d)
+
+配置文件======================
+cat /etc/default/celeryd
+# 节点名字【标识作用】，日志也会以这个名字开头，自定义即可，启动多个的写法：CELERYD_NODES="worker1 worker2 worker3" 或 CELERYD_NODES=10
+CELERYD_NODES=2
+# 配置celery的位置，查看位置：which celery
+CELERY_BIN="/root/.pyenv/versions/3.7.4/bin/celery"
+# 配置实例化app，一般指的创建app实例的文件，django项目则配置项目名，完整的配置方法：CELERY_APP="proj.tasks:app"
+CELERY_APP="Mysite"
+# 进入哪个work的目录
+CELERYD_CHDIR="/opt/apps/Mysite"
+# --time-limit ： 限制处理任务的时长
+# --concurrency ： 设置最高的并发数
+# 多个启动worker,对每个woker进行单独的配置方法：CELERYD_OPTS="--time-limit=300 -c 8 -c:worker2 4 -c:worker3 2 -Ofair:worker1"
+CELERYD_OPTS="--time-limit=300 --concurrency=8"
+# 设置日志的级别：开发环境：DEBUG，生产环境：INFO
+CELERYD_LOG_LEVEL="DEBUG"
+# 设置存放目志位置
+CELERYD_LOG_FILE="/var/log/celery/%n.log"
+# 设置启动程序存放pid文件
+CELERYD_PID_FILE="/var/run/celery/%n%I.pid"
+# 设置启动程序的用户，需要手动创建用户和组
+CELERYD_USER="root"
+CELERYD_GROUP="root"
+# 1：自动创建需要的目录文件并且设置运行程序所需的用户和组，0：需要手动处理
+CELERY_CREATE_DIRS=1
+# 设置celery最大的文件打开数
+CELERYD_ULIMIT=65535
+==============================================================
+启动 /etc/init.d/celerd start
